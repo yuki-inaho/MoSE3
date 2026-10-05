@@ -1,0 +1,23 @@
+[
+  {
+    "video_path": "examples/spin.mp4",
+    "num_frames": 40,
+    "start_frame": 0,
+    "frame_interval": 0,
+    "se3_dist_weight": true
+  },
+  {
+    "video_path": "examples/butterfly.mp4",
+    "num_frames": 30,
+    "start_frame": 0,
+    "frame_interval": 1,
+    "se3_dist_weight": true
+  },
+  {
+    "video_path": "examples/folding_blanket.mp4",
+    "num_frames": 40,
+    "start_frame": 0,
+    "frame_interval": 1,
+    "se3_dist_weight": true
+  }
+]

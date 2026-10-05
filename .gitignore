@@ -1,0 +1,23 @@
+**/__pycache__/
+*.pyc
+*.egg-info
+.vscode
+
+# weights
+*.safetensors
+*.pt
+*.pth
+*.bin
+/checkpoints
+/ckpt
+
+# inference / visualization outputs
+/outputs
+*.mp4
+*.png
+*.ply
+!examples/*.mp4
+!assets/*.png
+
+# development-only checks (need the research repo)
+/dev_tests

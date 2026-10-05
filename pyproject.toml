@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mose3"
+version = "0.1.0"
+description = "MoSE3: Learning World-Space SE(3) at Every Pixel"
+readme = "README.md"
+requires-python = ">=3.10"
+license-files = ["LICENSE", "licenses/*"]
+dependencies = [
+    "torch",
+    "numpy",
+    "opencv-python",
+    "imageio",
+    "imageio-ffmpeg",
+    "safetensors",
+    "huggingface_hub",
+]
+
+[project.optional-dependencies]
+demo = ["viser"]
+
+[tool.setuptools.packages.find]
+include = ["mose3*"]

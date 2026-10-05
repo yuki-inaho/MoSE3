@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# below for the interactive 3D viewer (visualize_viser.py)
+viser
