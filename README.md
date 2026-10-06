@@ -31,14 +31,22 @@ monocular RGB video, generalizing across **rigid, articulated and deformable obj
 ```bash
 git clone https://github.com/mose3-tracker/MoSE3.git
 cd MoSE3
+uv venv --python 3.10
+uv pip install -e .              # inference + visualization (torch 2.6.0, CUDA 12.6 wheels)
+uv pip install -e ".[demo]"      # + interactive 3D viewer (visualize_viser.py)
+uv pip install -e ".[app]"       # + Gradio app (gradio_app.py)
+```
+
+Or with conda and pip:
+
+```bash
 conda create -n mose3 python=3.10 -y
 conda activate mose3
 pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu126   # tested with CUDA 12.6
-pip install -r requirements.txt
-pip install -r requirements_demo.txt   # optional: the interactive 3D viewer
+pip install -e ".[demo,app]"
 ```
 
-No custom CUDA extension is needed. `pip install -e .` makes `mose3` importable from anywhere.
+No custom CUDA extension is needed. The editable install makes `mose3` importable from anywhere.
 
 ### Model weights
 
@@ -68,6 +76,31 @@ python visualize_viser.py --clip outputs/spin --port 8080
   pixel distance (`--se3_sigma_px`, default 8 px). The `demo.json` clips use it.
 - `python inference.py --help` lists every option. The keys of `predictions.npz` are documented in
   `run_clip` in `inference.py`.
+
+### Gradio app
+
+`gradio_app.py` serves a drag & drop UI: drop a video (or a set of frames) and it returns `tracks.mp4`,
+plus the SE(3) and rigidity visualizations.
+
+```bash
+python gradio_app.py --ckpt ckpt --port 7860     # http://127.0.0.1:7860
+```
+
+### End-to-end tests
+
+With the weights in `ckpt/` and a CUDA GPU:
+
+```bash
+pip install -e ".[test]"
+playwright install chromium
+pytest -m e2e -v
+```
+
+`tests/test_inference_e2e.py` runs `inference.py` and `visualize.py` on `examples/spin.mp4` and on
+frames extracted from `assets/teaser_dress.gif`, checking the prediction shapes, the SE(3) identity
+at the query frame, and the rendered videos. `tests/test_gradio_app_e2e.py` drives `gradio_app.py`
+in a real browser with Playwright, dropping a video and then frames onto the UI and checking the
+returned `tracks.mp4`.
 
 ### In Python
 

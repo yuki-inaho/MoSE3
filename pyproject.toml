@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license-files = ["LICENSE", "licenses/*"]
 dependencies = [
-    "torch",
+    "torch==2.6.0",
     "numpy",
     "opencv-python",
     "imageio",
@@ -21,6 +21,22 @@ dependencies = [
 
 [project.optional-dependencies]
 demo = ["viser"]
+app = ["gradio"]
+test = ["pytest", "playwright"]
 
 [tool.setuptools.packages.find]
 include = ["mose3*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "e2e: end-to-end tests that need the model weights in ckpt/ and a CUDA GPU",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu126" }

@@ -303,6 +303,43 @@ def pca_rgb(rigidity_emb: np.ndarray, fit_points: int = 65536, seed: int = 0) ->
     return out
 
 
+def render_clip(clip: str | Path, stride: int = 48, fps: float | None = None, trail: int = 12,
+                axis_len: float = 20.0, normal_radius: int = 12, dim: float = 0.8,
+                occluded_style: str = "alpha_dashed", edge_rtol: float = 0.05,
+                edge_margin: int = 4) -> dict:
+    """Render the 2D visualizations of one ``inference.py`` output folder. Returns the written paths."""
+    clip = Path(clip)
+    z = np.load(clip / "predictions.npz")
+    cfg_path = clip / "config.json"
+    fps = fps or (json.loads(cfg_path.read_text()).get("fps", 8) if cfg_path.exists() else 8)
+
+    images, tracks, poses, K, vis = z["images"], z["tracks"], z["camera_poses"], z["intrinsics"], z["visibility"]
+    query_idx = int(z["query_idx"])
+    T, H, W, _ = images.shape
+    pts = grid_points(H, W, stride)
+    edge = depth_edges(z, edge_rtol) if edge_rtol > 0 else None
+    keep = query_mask(z, edge_rtol, edge_margin)[pts[:, 0], pts[:, 1]]
+    print(f"[viz] {clip}: T={T} {W}x{H}, {keep.sum()} of {len(pts)} grid points shown (stride {stride})")
+    pts = pts[keep]
+    colors = point_colors(pts, H, W)
+
+    written = {}
+
+    def save(name, frames):
+        imageio.mimsave(clip / name, list(np.concatenate([images, frames], axis=2)), fps=fps, macro_block_size=1)
+        written[name] = clip / name
+        print(f"  wrote {clip / name}")
+
+    imageio.imwrite(clip / "query_points.png", draw_points(images[query_idx], pts, colors))
+    written["query_points.png"] = clip / "query_points.png"
+    save("tracks.mp4", render_tracks(images, tracks, poses, K, vis, pts, colors, trail=trail))
+    save("se3.mp4", render_se3_axes(images, tracks, z["se3_quat"], z["se3_trans"], z["se3_valid"], vis, poses, K,
+                                    query_idx, pts, colors, axis_len=axis_len, normal_radius=normal_radius,
+                                    dim=dim, occluded_style=occluded_style, edge=edge))
+    save("rigidity.mp4", pca_rgb(z["rigidity_emb"]))
+    return written
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--clip", required=True, help="Folder holding predictions.npz (an inference.py output folder).")
@@ -322,32 +359,8 @@ def main():
                         "and surface normals are taken from the point's own side of it. 0 = off.")
     p.add_argument("--edge_margin", type=int, default=4, help="Hide grid points within this many pixels of a depth edge.")
     args = p.parse_args()
-
-    clip = Path(args.clip)
-    z = np.load(clip / "predictions.npz")
-    cfg_path = clip / "config.json"
-    fps = args.fps or (json.loads(cfg_path.read_text()).get("fps", 8) if cfg_path.exists() else 8)
-
-    images, tracks, poses, K, vis = z["images"], z["tracks"], z["camera_poses"], z["intrinsics"], z["visibility"]
-    query_idx = int(z["query_idx"])
-    T, H, W, _ = images.shape
-    pts = grid_points(H, W, args.stride)
-    edge = depth_edges(z, args.edge_rtol) if args.edge_rtol > 0 else None
-    keep = query_mask(z, args.edge_rtol, args.edge_margin)[pts[:, 0], pts[:, 1]]
-    print(f"[viz] {clip}: T={T} {W}x{H}, {keep.sum()} of {len(pts)} grid points shown (stride {args.stride})")
-    pts = pts[keep]
-    colors = point_colors(pts, H, W)
-
-    def save(name, frames):
-        imageio.mimsave(clip / name, list(np.concatenate([images, frames], axis=2)), fps=fps, macro_block_size=1)
-        print(f"  wrote {clip / name}")
-
-    imageio.imwrite(clip / "query_points.png", draw_points(images[query_idx], pts, colors))
-    save("tracks.mp4", render_tracks(images, tracks, poses, K, vis, pts, colors, trail=args.trail))
-    save("se3.mp4", render_se3_axes(images, tracks, z["se3_quat"], z["se3_trans"], z["se3_valid"], vis, poses, K,
-                                    query_idx, pts, colors, axis_len=args.axis_len, normal_radius=args.normal_radius,
-                                    dim=args.dim, occluded_style=args.occluded_style, edge=edge))
-    save("rigidity.mp4", pca_rgb(z["rigidity_emb"]))
+    render_clip(args.clip, args.stride, args.fps, args.trail, args.axis_len, args.normal_radius, args.dim,
+                args.occluded_style, args.edge_rtol, args.edge_margin)
 
 
 if __name__ == "__main__":

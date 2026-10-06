@@ -2,6 +2,8 @@
 *.pyc
 *.egg-info
 .vscode
+.venv
+.pytest_cache
 
 # weights
 *.safetensors

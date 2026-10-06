@@ -1,7 +1,0 @@
-torch==2.6.0
-numpy
-opencv-python
-imageio
-imageio-ffmpeg
-safetensors
-huggingface_hub
