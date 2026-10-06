@@ -17,9 +17,14 @@ from torch.nn.attention import SDPBackend
 from torch.nn.functional import scaled_dot_product_attention
 
 
+def _flash_attention_supported() -> bool:
+    """The flash SDPA kernel needs Ampere or newer (sm80+); on Turing (RTX 20xx) it must not be requested."""
+    return torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8
+
+
 def _sdpa(q: Tensor, k: Tensor, v: Tensor, half_dtypes) -> Tensor:
     """Flash kernel for half precision, math / mem-efficient kernels otherwise."""
-    if q.dtype in half_dtypes:
+    if q.dtype in half_dtypes and _flash_attention_supported():
         with nn.attention.sdpa_kernel(SDPBackend.FLASH_ATTENTION):
             return scaled_dot_product_attention(q, k, v)
     with nn.attention.sdpa_kernel([SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION]):

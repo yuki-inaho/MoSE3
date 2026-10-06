@@ -27,10 +27,11 @@ if str(ROOT) not in sys.path:
 
 from inference import resolve_clip_config, run_clip, save_clip_outputs
 from mose3.models.mose3 import MoSE3
+from mose3.utils.precision import prepare_model
 from mose3.utils.video_io import load_image_dir_clip, load_video_clip
 from visualize import render_clip
 
-STATE = {"model": None, "device": None, "settings": {}}
+STATE = {"model": None, "device": None, "settings": {}, "autocast_dtype": torch.bfloat16}
 
 
 def _video_fps(path: str, default: float = 8.0) -> float:
@@ -73,7 +74,8 @@ def process(video_path, image_paths, num_frames, max_side, query_idx, dist_weigh
             "se3_dist_weight": bool(dist_weight),
             "fps": fps,
         })
-        payload = run_clip(STATE["model"], cfg, device=STATE["device"])
+        payload = run_clip(STATE["model"], cfg, device=STATE["device"],
+                           autocast_dtype=STATE["autocast_dtype"])
         out_dir = Path(cfg["output_dir"])
         save_clip_outputs(out_dir, cfg, payload)
         written = render_clip(out_dir, stride=int(stride))
@@ -129,6 +131,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--ckpt", default="ckpt", help="Folder holding model.safetensors + config.json, or a Hub repo id.")
     p.add_argument("--device", default="cuda")
+    p.add_argument("--dtype", default="auto", choices=["auto", "float32", "float16", "bfloat16"],
+                   help="Model/autocast precision. auto: fp32 weights on Ampere+, fp16 on older GPUs (8 GB).")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=7860)
     p.add_argument("--num_frames", type=int, default=32, help="Default frames sampled in the UI.")
@@ -140,7 +144,8 @@ def main():
     STATE["device"] = device
     STATE["settings"] = {"num_frames": args.num_frames, "max_side": args.max_side, "stride": args.stride}
     print(f"[load] ckpt={args.ckpt} device={device}")
-    STATE["model"] = MoSE3.from_pretrained(args.ckpt, strict=True).to(device).eval()
+    STATE["model"], STATE["autocast_dtype"] = prepare_model(
+        MoSE3.from_pretrained(args.ckpt, strict=True).eval(), device, args.dtype)
 
     demo = build_demo()
     demo.launch(server_name=args.host, server_port=args.port, show_error=True)

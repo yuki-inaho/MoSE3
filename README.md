@@ -77,6 +77,11 @@ python visualize_viser.py --clip outputs/spin --port 8080
 - `python inference.py --help` lists every option. The keys of `predictions.npz` are documented in
   `run_clip` in `inference.py`.
 
+On 8 GB GPUs (e.g. RTX 2070) the released fp32 weights do not fit. `--dtype auto` (the default)
+casts the model to fp16 and runs the forward pass under fp16 autocast on pre-Ampere GPUs, while
+keeping the upstream fp32 + bf16-autocast setup on Ampere and newer. `gradio_app.py` takes the same
+`--dtype` flag.
+
 ### Gradio app
 
 `gradio_app.py` serves a drag & drop UI: drop a video (or a set of frames) and it returns `tracks.mp4`,

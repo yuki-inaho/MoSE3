@@ -28,6 +28,7 @@ import numpy as np
 import torch
 
 from mose3.models.mose3 import MoSE3
+from mose3.utils.precision import prepare_model
 from mose3.utils.video_io import load_image_dir_clip, load_video_clip
 from mose3.utils.per_point_se3 import fit_per_pixel_se3
 
@@ -80,7 +81,8 @@ def _to_first_camera_frame(points_local: torch.Tensor, camera_poses: torch.Tenso
 
 
 @torch.inference_mode()
-def run_clip(model, clip_cfg: Dict[str, Any], device: torch.device) -> Dict[str, Any]:
+def run_clip(model, clip_cfg: Dict[str, Any], device: torch.device,
+             autocast_dtype: torch.dtype = torch.bfloat16) -> Dict[str, Any]:
     """Returns the ``predictions.npz``: T frames at H x W. All 3D quantities are expressed in the
     coordinate frame of the first camera (frame 0), which is what "world" means below.
     Dense arrays are indexed by the query-frame pixel (h, w); ``rigidity_emb[t]`` by frame-t pixels.
@@ -118,8 +120,8 @@ def run_clip(model, clip_cfg: Dict[str, Any], device: torch.device) -> Dict[str,
 
     # 2. forward pass: 3D tracks of the query pixels, rigidity embeddings, camera poses
     q = int(clip_cfg["query_idx"])
-    print(f"  forward: T={T} H={H} W={W} query={q}")
-    with torch.autocast(device_type=device.type, dtype=torch.bfloat16):
+    print(f"  forward: T={T} H={H} W={W} query={q} autocast={str(autocast_dtype).replace('torch.', '')}")
+    with torch.autocast(device_type=device.type, dtype=autocast_dtype):
         out = model(images_b, query_frame_idx=q)
 
     tracks_local = out["tracks_local"][0].float()
@@ -190,6 +192,8 @@ def main():
     p.add_argument("--se3_sigma_px", type=float,
                    help=f"SE(3) fit: sigma of that distance weight, in pixels (default {DEFAULTS['se3_sigma_px']:g}).")
     p.add_argument("--device", default="cuda")
+    p.add_argument("--dtype", default="auto", choices=["auto", "float32", "float16", "bfloat16"],
+                   help="Model/autocast precision. auto: fp32 weights on Ampere+, fp16 on older GPUs (8 GB).")
     args = p.parse_args()
 
     # several clips from a JSON list, or a single clip from the flags
@@ -205,11 +209,12 @@ def main():
 
     device = torch.device(args.device)
     print(f"[load] ckpt={args.ckpt} device={device}")
-    model = MoSE3.from_pretrained(args.ckpt, strict=True).to(device).eval()  # local folder or Hub repo id
+    model = MoSE3.from_pretrained(args.ckpt, strict=True).eval()  # local folder or Hub repo id
+    model, autocast_dtype = prepare_model(model, device, args.dtype)  # may cast to fp16 to fit 8 GB GPUs
 
     for i, cfg in enumerate(clips):
         print(f"[{i+1}/{len(clips)}] id={cfg['id']} → {cfg['output_dir']}")
-        payload = run_clip(model, cfg, device=device)
+        payload = run_clip(model, cfg, device=device, autocast_dtype=autocast_dtype)
         save_clip_outputs(Path(cfg["output_dir"]), cfg, payload)
         print(f"  wrote {Path(cfg['output_dir']) / 'predictions.npz'}")
 
